@@ -1,0 +1,222 @@
+---
+title: "HW3, Lecture 5"
+output: pdf_document
+date: "2026-02-07"
+author: Isaac Pinto 605956560
+---
+
+```{r}
+library(ggplot2)
+library(ggfortify)
+library(dplyr)
+library(corrplot)
+library(GGally)
+library(leaps)
+library(car)   # for VIF
+library(caret)
+library(tidytext)
+library(textdata)
+```
+
+
+```{r}
+engineer_features_simple <- function(df) {
+  road_rail_conditions <- c("Artery", "RRAn", "RRNn", "RRAe", "RRNe")
+  sentiments <- get_sentiments("afinn")  # scores words -5 to +5
+
+  sentiment_scores <- sapply(df$House_Review_Text, function(text) {
+    words <- data.frame(word = unlist(strsplit(tolower(text), " ")))
+    score <- words %>% inner_join(sentiments, by = "word") %>% summarise(s = sum(value))
+    ifelse(nrow(score) == 0, 0, score$s)
+  })
+  df %>%
+    mutate(
+      SentimentScore = sentiment_scores,
+      # Age since built or remodeled
+      Age = ifelse(YearBuilt < YearRemodAdd,
+                   YrSold - YearBuilt,
+                   YrSold - YearRemodAdd),
+      
+      # Basement finished area
+      BaseLivArea = TotalBsmtSF - BsmtUnfSF,
+      LogTotalBsmtSF = log(TotalBsmtSF+1),
+      LogGrLivArea = log(GrLivArea),
+      Log_LotArea = log(LotArea),
+      OverallQualSq = OverallQual^2,
+      TotalBath = FullBath + 0.5*HalfBath + BsmtFullBath + 0.5*BsmtHalfBath,
+      TotalSF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF,
+      TotalFinishedSF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - BsmtUnfSF,
+      HighQualitySF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - LowQualFinSF,
+      
+      # Road/rail proximity (either condition column)
+      RoadRail = ifelse(Condition1 %in% road_rail_conditions | 
+                        Condition2 %in% road_rail_conditions, 1, 0),
+      
+      # Neighborhood location tier
+      Location = factor(case_when(
+        Neighborhood %in% c("MeadowV", "Edwards", "Sawyer", 
+                            "Landmrk", "SWISU", "BrDale", "IDOTRR") ~ 1,
+        Neighborhood %in% c("NAmes", "Mitchel", "BrkSide", 
+                            "NPkVill", "OldTown", "ClearCr", "Gilbert") ~ 2,
+        Neighborhood %in% c("SawyerW", "NWAmes", "Crawfor", 
+                            "CollgCr", "Blueste", "GrnHill", "Blmngtn") ~ 3,
+        TRUE ~ 4
+      ))
+    )
+}
+
+train <- read.csv("HousePriceTrain.csv", row.names = 1) %>%
+  mutate(LogSalePrice = log(SalePrice)) %>%
+  engineer_features_simple()
+test <- read.csv("HousePriceTestNoY.csv", row.names=1) %>%
+  engineer_features_simple()
+
+set.seed(5)
+train_index <- sample(1:nrow(train), 0.8*nrow(train))
+train_split <- train[train_index, ]
+valid_split <- train[-train_index, ]
+
+## -----------------------
+
+num_vars <- train %>%
+  select(where(is.numeric)) %>%
+  select(-SalePrice, -LogSalePrice)
+
+
+cor_matrix <- cor(train_split %>% 
+                    select(where(is.numeric)),
+                  use = "complete.obs")
+
+sale_cor <- abs(cor_matrix[, "LogSalePrice"])
+sale_cor <- sort(sale_cor, decreasing = TRUE)
+sale_cor
+top15 <- names(sale_cor)[2:16]   # exclude LogSalePrice itself
+top15
+top25 <- names(sale_cor)[2:26]
+top25
+
+subset_formula <- as.formula(
+  paste("LogSalePrice ~", paste(top25, collapse = " + "))
+)
+best_model <- regsubsets(subset_formula,
+                         data = train_split,
+                         nvmax = 15)
+best_summary <- summary(best_model)
+
+# Find model with lowest BIC
+bic_values <- best_summary$bic
+best_size <- which.min(bic_values)
+best_size
+
+best_vars <- names(coef(best_model, best_size))
+best_vars <- best_vars[-1]  # remove intercept
+best_vars
+items_to_remove <- c("Qual_x_Area", "MiscVal")
+best_vars <- best_vars[!best_vars %in% items_to_remove]
+best_vars
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~", paste(best_vars, collapse = " + "))
+)
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQual+LogGrLivArea + Garage_x_Qual + LotFrontage")
+)
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(log(TotalBsmtSF+1)) + X1stFlrSF + I(OverallQual^2) + I(log(GrLivArea)) + Garage_x_Qual + LotFrontage")
+)
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQualSq + LogGrLivArea + Garage_x_Qual + LotFrontage + Log_LotArea")
+) # 0.94 cor, 0.65 score
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQualSq*Location + LogGrLivArea + Garage_x_Qual + LotFrontage + Log_LotArea")
+) 
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.74 model
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.71 model
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea + OverallCond + TotalBath")
+) 
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + LogGrLivArea + Garage_x_Qual*Garage + LotFrontage + Log_LotArea + RoadRail")
+) # 0.65588
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea + SentimentScore")
+) # 0.763
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*SentimentScore + Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.703
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + SentimentScore + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.8206
+
+m1 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea")
+), data = train_split) # 0.83192
+
+m2 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea")
+), data = train_split) # 0.829
+
+m3 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")
+), data = train_split) # 0.831
+
+
+final_model <- m4
+
+mmps(final_model)
+
+summary(final_model)
+autoplot(final_model)
+
+anova(final_model)
+vif(final_model)
+
+pred_log_valid <- predict(final_model, newdata = valid_split)
+pred_valid <- exp(pred_log_valid)
+
+cor(valid_split$LogSalePrice, pred_log_valid)^2
+cor(valid_split$SalePrice, pred_valid)^2
+
+train_control <- trainControl(method = "cv", number = 10)
+
+model_cv <- train(
+  final_formula,
+  data = train,
+  method = "lm",
+  trControl = train_control
+)
+
+print(model_cv$results)  # gives you mean R² across folds
+
+```
+
+```{r}
+pred_log_test <- predict(final_model, newdata=test)
+pred_test <- exp(pred_log_test)
+
+NN<-1:3000
+Sub<- data.frame(NN,pred_test)
+names(Sub)[names(Sub) == "NN"] <- "ID"
+names(Sub)[names(Sub) == "pred_test"] <- "SalePrice"
+head(Sub)
+
+write.csv(Sub,"./Sub1.csv",row.names = F)
+```
+
+
+
