@@ -1,0 +1,39 @@
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQual+LogGrLivArea + Garage_x_Qual + LotFrontage")
+)
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(log(TotalBsmtSF+1)) + X1stFlrSF + I(OverallQual^2) + I(log(GrLivArea)) + Garage_x_Qual + LotFrontage")
+)
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQualSq + LogGrLivArea + Garage_x_Qual + LotFrontage + Log_LotArea")
+) # 0.94 cor, 0.65 score
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + X1stFlrSF + OverallQualSq*Location + LogGrLivArea + Garage_x_Qual + LotFrontage + Log_LotArea")
+) 
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.74 model
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.71 model
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea + OverallCond + TotalBath")
+) 
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + LogGrLivArea + Garage_x_Qual*Garage + LotFrontage + Log_LotArea + RoadRail")
+) # 0.65588
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea + SentimentScore")
+) # 0.763
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*SentimentScore + Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.703
