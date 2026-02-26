@@ -42,15 +42,18 @@ engineer_features_simple <- function(df) {
       LogTotalBsmtSF = log(TotalBsmtSF+1),
       LogGrLivArea = log(GrLivArea),
       Log_LotArea = log(LotArea),
+      LogX1stFlrSF = log(X1stFlrSF),
+      LogLotFrontage = log(LotFrontage),
       OverallQualSq = OverallQual^2,
       TotalBath = FullBath + 0.5*HalfBath + BsmtFullBath + 0.5*BsmtHalfBath,
       TotalSF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF,
       TotalFinishedSF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - BsmtUnfSF,
       HighQualitySF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - LowQualFinSF,
+      GarageCarsFactor = factor(round(GarageCars),ordered = TRUE),
       
       # Road/rail proximity (either condition column)
-      RoadRail = ifelse(Condition1 %in% road_rail_conditions | 
-                        Condition2 %in% road_rail_conditions, 1, 0),
+      RoadRail = factor(ifelse(Condition1 %in% road_rail_conditions | 
+                        Condition2 %in% road_rail_conditions, 1, 0)),
       
       # Neighborhood location tier
       Location = factor(case_when(
@@ -108,15 +111,30 @@ bic_values <- best_summary$bic
 best_size <- which.min(bic_values)
 best_size
 
-best_vars <- names(coef(best_model, best_size))
+best_vars <- names(coef(best_model, 15))
 best_vars <- best_vars[-1]  # remove intercept
 best_vars
-items_to_remove <- c("Qual_x_Area", "MiscVal")
-best_vars <- best_vars[!best_vars %in% items_to_remove]
-best_vars
+#items_to_remove <- c("Qual_x_Area", "MiscVal")
+#best_vars <- best_vars[!best_vars %in% items_to_remove]
 
 final_formula <- as.formula(
   paste("LogSalePrice ~", paste(best_vars, collapse = " + "))
+)
+
+m0 <- lm(as.formula(paste("LogSalePrice ~ BsmtQual + LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")), data = train_split)
+
+m0 <- lm(as.formula(paste("LogSalePrice ~ LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq + SentimentScore + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")), data = train_split)
+ 
+mmps(m0)
+
+summary(
+  powerTransform(
+    cbind(SalePrice, TotalBsmtSF, X1stFlrSF, OverallQual,
+          SentimentScore, Age, GrLivArea, GarageCars,
+          LotFrontage, LotArea, TotalBath) ~ 1,
+    data = train_split,
+    family = "yjPower"
+  )
 )
 
 final_formula <- as.formula(
@@ -135,11 +153,31 @@ m3 <- lm(as.formula(
   paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")
 ), data = train_split) # 0.831
 
+m5 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.83289
 
-final_model <- m4
+m6 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + MiscVal + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.76334
 
-mmps(final_model)
+m7 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + MiscFeature*MiscVal + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.75064
 
+m8 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 
+
+m4 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")
+), data = train_split) # 0.754
+
+summary(train$MiscFeat)
+unique(train$MiscFeature)
+anova(m5, m8)
+
+final_model <- m5
 summary(final_model)
 autoplot(final_model)
 
