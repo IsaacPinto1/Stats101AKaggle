@@ -37,3 +37,63 @@ final_formula <- as.formula(
 final_formula <- as.formula(
   paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*SentimentScore + Location + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
 ) # 0.703
+
+m6 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + MiscVal + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.76334
+
+m7 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + MiscFeature*MiscVal + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.75064
+
+m4 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")
+), data = train_split) # 0.754
+
+final_formula <- as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + SentimentScore + Age + LogGrLivArea + Garage_x_Qual + I(log(LotFrontage)) + Log_LotArea")
+) # 0.8206
+
+m1 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Neighborhood + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea")
+), data = train_split) # 0.83192
+
+m2 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea")
+), data = train_split) # 0.829
+
+m3 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq*Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")
+), data = train_split) # 0.831
+
+m5 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*LogTotalBsmtSF + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.83289
+
+m8 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.8823
+
+m9 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.88528
+
+m10 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^4) + I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.8266
+
+m11 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + I(log(Age+3)) + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.8808
+
+m12 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + I(LogX1stFlrSF^2) + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.88924
+
+m13 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + LogTotalBsmtSF + I(LogX1stFlrSF^2) + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.89947
+
+m14 <- lm(as.formula(
+  paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) + LogTotalBsmtSF + I(LogX1stFlrSF^2) + LogX1stFlrSF + OverallQualSq*Neighborhood + I(sqrt(SentimentScore+2)) + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + TotalBath")
+), data = train_split) # 0.89771
