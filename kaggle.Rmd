@@ -16,7 +16,9 @@ library(car)   # for VIF
 library(caret)
 library(tidytext)
 library(textdata)
+library(sentimentr)
 ```
+
 ```{r}
 num_vars <- train %>%
   select(where(is.numeric)) %>%
@@ -61,8 +63,22 @@ final_formula <- as.formula(
 m0 <- lm(as.formula(paste("LogSalePrice ~ BsmtQual + LogTotalBsmtSF + I(log(X1stFlrSF)) + OverallQualSq + Location + SentimentScore + Age + LogGrLivArea + GarageCars + I(log(LotFrontage)) + Log_LotArea + TotalBath")), data = train_split)
 
 m0 <- lm(as.formula(paste("LogSalePrice ~ I(LogTotalBsmtSF^2) + I(LogX1stFlrSF^2) + OverallQualSq + SentimentScore + Age + LogGrLivArea + GarageCars + LogLotFrontage + Log_LotArea + sqrt(TotalBath)")), data = train_split)
+
+m0 <- lm(as.formula(
+  paste("LogSalePrice ~ I(log(TotalSF))+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq  + I(sqrt(SentimentScore+2)) + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.906, 10 betas
  
+m0 <- lm(as.formula(
+  paste("LogSalePrice ~ I(log(TotalSF)) +LogTotalBsmtSF+ LogX1stFlrSF + OverallQualSq  + I(sqrt(SentimentScore+2)) + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.906, 10 betas
+
+m0 <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) + I(sqrt(SentimentScore2+1)) + LogTotalBsmtSF+ LogX1stFlrSF + OverallQualSq + SentimentScore + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.90875, 10 betas
+
 mmps(m0)
+vif(m0)
+
 
 summary(
   powerTransform(
@@ -80,15 +96,22 @@ summary(
 engineer_features_basic_location <- function(df) {
   road_rail_conditions <- c("Artery", "RRAn", "RRNn", "RRAe", "RRNe")
   sentiments <- get_sentiments("afinn")  # scores words -5 to +5
-
+  
   sentiment_scores <- sapply(df$House_Review_Text, function(text) {
     words <- data.frame(word = unlist(strsplit(tolower(text), " ")))
     score <- words %>% inner_join(sentiments, by = "word") %>% summarise(s = sum(value))
     ifelse(nrow(score) == 0, 0, score$s)
   })
+  sentiment_scores2 <- df$House_Review_Text %>%
+  get_sentences() %>%
+  sentiment_by(by = NULL) %>%    # NULL = score each text as one unit
+  pull(ave_sentiment)
+
   df %>%
     mutate(
       SentimentScore = sentiment_scores,
+      SentimentScore2 = sentiment_scores2,
+      
       # Age since built or remodeled
       Age = ifelse(YearBuilt < YearRemodAdd,
                    YrSold - YearRemodAdd,
@@ -107,12 +130,21 @@ engineer_features_basic_location <- function(df) {
       TotalFinishedSF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - BsmtUnfSF,
       HighQualitySF = X1stFlrSF + X2ndFlrSF + TotalBsmtSF - LowQualFinSF,
       GarageCarsFactor = factor(round(GarageCars),ordered = TRUE),
+      GarageCarsClamped = pmin(GarageCars, 4),
       
       # Road/rail proximity (either condition column)
       RoadRail = factor(ifelse(Condition1 %in% road_rail_conditions | 
                         Condition2 %in% road_rail_conditions, 1, 0)),
       
       # Neighborhood location tier
+      Location2  = factor(case_when(
+        Neighborhood %in% c("NAmes", "CollgCr", "OldTown", "Somerst", "Edwards", "Gilbert", "NridgHt", "Sawyer", "SawyerW", "NWAmes", "Mitchel", "BrkSide", "Crawfor") ~ 1,
+        TRUE ~ 2
+      )),
+      HasSecondFloor = factor(case_when(
+        X2ndFlrSF > 0 ~ 1,
+        TRUE ~ 2
+      )),
       Location = factor(case_when(
         Neighborhood %in% c("MeadowV", "Edwards", "Sawyer", 
                             "Landmrk", "SWISU", "BrDale", "IDOTRR", "NAmes", "Mitchel", "BrkSide", 
@@ -189,8 +221,44 @@ model_initial <- lm(as.formula(
 ), data = train) # 0.90200 (use train and remove bad leverage)
 
 model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ I(sqrt(TotalSF))+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea")
+), data = train) # 0.857, 10 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea")
+), data = train) # 0.906, 10 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea + RoadRail")
+), data = train) # 0.90634, 11 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea + RoadRail")
+), data = train) # 0.90634, 11 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea")
+), data = train) # 0.90620, 10 betas, 0.90210 without bad leverage
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.90652, 10 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF+I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.90875, 10 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF + I(LogTotalBsmtSF^2) + LogX1stFlrSF + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCarsClamped + Log_LotArea")
+), data = train) # 0.91549, 9 betas
+
+model_initial <- lm(as.formula(
+  paste("LogSalePrice ~ TotalSF + I(LogTotalBsmtSF^2) + LogX1stFlrSF+ OverallQualSq*Location + I(sqrt(SentimentScore+2)) + GarageCars + Log_LotArea")
+), data = train) 
+
+model_initial <- lm(as.formula(
   paste("LogSalePrice ~ BsmtQual*I(LogTotalBsmtSF^2) +LogTotalBsmtSF+ I(LogX1stFlrSF^2) + OverallQualSq*Location + I(sqrt(SentimentScore+2)) + LogGrLivArea + GarageCars +  Log_LotArea")
-), data = train) # 0.86856
+), data = train) # 0.86856, 16 betas
 
 
 ########################################
@@ -214,7 +282,6 @@ model <- lm(as.formula(
 ########################################
 # END
 ########################################
-
 
 
 final_model <- model_initial
